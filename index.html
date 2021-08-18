@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="./styles.css">
+    <title>Draughts</title>
+</head>
+<body>
+    <div class="game">
+        <div class="game-data">
+            <h1>Current Player</h1>
+            <h2 id="display-current-player">Black</h2>
+        </div>
+        <div class="game-board">
+            <div id="tiles-container"></div>
+        </div>
+        <div class="end-game-window" style="display: none;">
+            <div id="win-box">
+                <div id="win-winner"></div>
+                <div id="win-reason"></div>
+                <button id="play-again" onclick="window.location.reload()">Play again</button>
+            </div>
+        </div>
+    </div>
+    <script src="./script.js"></script>
+</body>
+</html>
