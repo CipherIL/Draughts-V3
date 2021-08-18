@@ -8,6 +8,7 @@ initHTMLBoardGraphics();
 initEventDetector();
 initGameData();
 printPiecesToBoard();
+
 //Init Functions
 function initHTMLBoardGraphics()
 {
@@ -119,7 +120,7 @@ function handleUserClick(i,j)
         if(game.pickedPiece.piece !== undefined)
         {
             game.pickedPiece.piece.picked = false;
-            UnsetTrgets();
+            UnsetTargets();
         }
         game.pickedPiece.piece = game.board[i][j];
         game.pickedPiece.i = i;
@@ -131,18 +132,23 @@ function handleUserClick(i,j)
     }
     else if(game.board[i][j].type==="empty" && game.board[i][j].isValidTarget) //Click on valid empty spot
     {
-        movePiece(i,j);
-        UnsetTrgets();
-        //pickedPiece now holds empty spot we moved to
-        if(game.pickedPiece.piece.pieceEatingToGetHere!==undefined) //eating a piece to move
+        if(game.board[i][j].pieceEatingToGetHere===undefined)//Moving without eating
         {
-            eatPiece(game.pickedPiece.piece.pieceEatingToGetHere);
-            if(checkCanChainEat())
-            {
-                game.chainEating=true;
-            }
+            movePiece(i,j);
+            UnsetTargets();
+            endTurn();
         }
-        endTurn();
+        else //Moving with eating
+        {
+            eatPiece(game.board[i][j].pieceEatingToGetHere);
+            movePiece(i,j);
+            UnsetTargets();
+            if(checkCanChainEat(i,j))
+            {
+                refreshScreen();
+            }
+            else endTurn();
+        }
     }
 }
 function endTurn()
@@ -161,19 +167,17 @@ function movePiece(i,j)
     game.board[i][j] = game.pickedPiece.piece;
     game.pickedPiece.piece = temp;
     game.board[game.pickedPiece.i][game.pickedPiece.j]=temp;
-    console.log(game.board)
+    checkAndPromote(i,j)
 }
-function checkEating()
-{
-
-
-}
-function UnsetTrgets()
+function UnsetTargets()
 {
     for(let i=0;i<8;i++)
         for(let j=0;j<8;j++)
             if(game.board[i][j].type==="empty")
+            {
                 game.board[i][j].isValidTarget=false;
+                game.board[i][j].pieceEatingToGetHere=undefined;
+            }
 }
 function eatPiece(piece)
 {
@@ -181,21 +185,97 @@ function eatPiece(piece)
     else game.lightPieces--;
     for(let i=0; i<8;i++)
         for(let j=0;j<8;j++)
-            if(board[i][j]===piece)
-                board[i][j]=getEmptyTile();
+        {
+            if(game.board[i][j] === "empty")
+            {
+                game.board[i][j].isValidTarget=false;
+                game.board[i][j].pieceEatingToGetHere = undefined;
+            }
+            if(i === piece.i && j === piece.j)
+                game.board[i][j] = getEmptyTile();
+        }
 }
-
+function checkCanChainEat(i,j)
+{
+    let canEat = false;
+    directions = ["UR","UL","DR","DL"];
+    for(let dir of directions)    
+        if(canEatInDir(i,j,dir))
+        {
+            setTarget(i,j,dir);
+            canEat = true;
+        }
+    if(canEat)
+    {
+        game.pickedPiece={piece:game.board[i][j],i:i,j:j}
+    }       
+    return canEat;   
+}
+function canEatInDir(i,j,dir)
+{
+    if(dir[0]==="D" && i>=6) return false;
+    if(dir[0]==="U" && i<=1) return false;
+    if(dir[1]==="R" && j>=6) return false;
+    if(dir[1]==="L" && j<=1) return false;
+    if(game.board[i+(dir[0]==="D"?1:-1)][j+(dir[1]==="R"?1:-1)].type==="soldier" &&
+       game.board[i+(dir[0]==="D"?1:-1)][j+(dir[1]==="R"?1:-1)].isDark!==game.playerIsDark &&
+       game.board[i+(dir[0]==="D"?2:-2)][j+(dir[1]==="R"?2:-2)].type==="empty") return true;
+       return false; 
+}
+function setTarget(i,j,dir)
+{
+    game.board[i+(dir[0]==="D"?2:-2)][j+(dir[1]==="R"?2:-2)].isValidTarget = true;
+    game.board[i+(dir[0]==="D"?2:-2)][j+(dir[1]==="R"?2:-2)].pieceEatingToGetHere=
+    {i:i+(dir[0]==="D"?1:-1),j:j+(dir[1]==="R"?1:-1)};
+}
 //Soldier specific Functions
 function getSoldier(soldierIsDark,i,j)
 {
     return {isDark: soldierIsDark,type: "soldier",picked:false};     
 }
-
 function setSoldierTargets(i,j)
 {
     //set regular movement
-    if(j<7 && game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j+1].type==="empty")
+    if(j<7 && game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j+1].type === "empty")
         game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j+1].isValidTarget = true;
-    if(j>0 && game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j-1].type==="empty")
+    if(j>0 && game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j-1].type === "empty")
         game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j-1].isValidTarget = true;
+
+    //set eating movement
+    //Right
+    if(j<6 && game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j+1].type === "soldier" &&
+       game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j+1].isDark !== game.playerIsDark &&
+       game.board[i+(game.pickedPiece.piece.isDark?-2:2)][j+2].type === "empty")
+       {
+            game.board[i+(game.pickedPiece.piece.isDark?-2:2)][j+2].isValidTarget = true;
+            game.board[i+(game.pickedPiece.piece.isDark?-2:2)][j+2].pieceEatingToGetHere = 
+            {i:i+(game.pickedPiece.piece.isDark?-1:1),j:j+1}
+       }
+    //Left
+    if(j>1 && game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j-1].type === "soldier" &&
+        game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j-1].isDark !== game.playerIsDark &&
+        game.board[i+(game.pickedPiece.piece.isDark?-2:2)][j-2].type === "empty")
+        {
+            game.board[i+(game.pickedPiece.piece.isDark?-2:2)][j-2].isValidTarget = true;
+            game.board[i+(game.pickedPiece.piece.isDark?-2:2)][j-2].pieceEatingToGetHere =
+            {i:i+(game.pickedPiece.piece.isDark?-1:1),j:j-1};
+        }
+}
+function checkAndPromote(i,j)
+{
+    if(game.board[i][j].type==="soldier")
+    {
+        if(game.board[i][j].isDark && i===0)
+            promote(i,j);
+        if(!game.board[i][j].isDark && i===7)
+            promote(i,j);
+    }       
+}
+function promote(i,j)
+{
+    game.board[i][j]={
+        isDark: game.board[i][j].isDark,
+        type: "queen",
+        picked: false
+    }
 }
