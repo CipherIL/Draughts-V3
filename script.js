@@ -127,7 +127,7 @@ function handleUserClick(i,j)
         game.pickedPiece.j = j;       
         game.board[i][j].picked = true;
         if(game.board[i][j].type==="soldier") setSoldierTargets(i,j);
-        // if(game.board[i][j].type==="queen") setQueenTargets();
+        if(game.board[i][j].type==="queen") setQueenTargets(i,j);
         refreshScreen();
     }
     else if(game.board[i][j].type==="empty" && game.board[i][j].isValidTarget) //Click on valid empty spot
@@ -228,7 +228,7 @@ function setTarget(i,j,dir)
     game.board[i+(dir[0]==="D"?2:-2)][j+(dir[1]==="R"?2:-2)].pieceEatingToGetHere=
     {i:i+(dir[0]==="D"?1:-1),j:j+(dir[1]==="R"?1:-1)};
 }
-//Soldier specific Functions
+//Soldier Specific Functions
 function getSoldier(soldierIsDark,i,j)
 {
     return {isDark: soldierIsDark,type: "soldier",picked:false};     
@@ -278,4 +278,10 @@ function promote(i,j)
         type: "queen",
         picked: false
     }
+}
+
+//Queen Specific Functions
+function setQueenTargets(i,j)
+{
+    
 }
