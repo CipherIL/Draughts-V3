@@ -5,7 +5,7 @@ const lightQueenImg = "/Images/Checkers_Light_Piece_Queen.png";
 const game={};
 
 initHTMLBoardGraphics();
-initEventDetector();
+initEventDetectors();
 initGameData();
 printPiecesToBoard();
 
@@ -29,7 +29,7 @@ function initHTMLBoardGraphics()
             gameBoard.appendChild(tile);
         }
 }
-function initEventDetector()
+function initEventDetectors()
 {
     let boardClickDetector = document.getElementById("tiles-container");
     boardClickDetector.addEventListener('click',(e)=>{
@@ -38,6 +38,11 @@ function initEventDetector()
             handleUserClick(parseInt(e.target.id[0]),parseInt(e.target.id[1]));
         }
     })
+    document.getElementById("end-chain-eating").addEventListener('click',(e)=>{
+        endTurn();
+        e.target.style.display = "none";
+    });
+    
 }
 function initGameData()
 {
@@ -73,6 +78,7 @@ function refreshScreen()
 {
     clearPiecesFromBoard();
     printPiecesToBoard();
+    updateGameDataGraphic();
 }
 function printPiecesToBoard()
 {
@@ -110,12 +116,18 @@ function clearPiecesFromBoard()
         tile.innerHTML="";
     }    
 }
+function updateGameDataGraphic()
+{
+    document.getElementById("display-current-player").innerHTML = game.playerIsDark?"Black":"White";
+    document.getElementById("end-chain-eating").style = game.chainEating?"":"display: none;"
+    
+}
 
 //General Game Functions
 function handleUserClick(i,j)
 {
     //Click on valid soldier
-    if(game.board[i][j].type==="soldier" && game.board[i][j].isDark === game.playerIsDark && !game.chainEating)
+    if(game.board[i][j].type!=="empty" && game.board[i][j].isDark === game.playerIsDark && !game.chainEating)
     {
         if(game.pickedPiece.piece !== undefined)
         {
@@ -135,16 +147,18 @@ function handleUserClick(i,j)
         if(game.board[i][j].pieceEatingToGetHere===undefined)//Moving without eating
         {
             movePiece(i,j);
-            UnsetTargets();
             endTurn();
         }
         else //Moving with eating
-        {
+        {   
+            unmarkPiecesCanEat(); //Eating so no burning
             eatPiece(game.board[i][j].pieceEatingToGetHere);
             movePiece(i,j);
             UnsetTargets();
             if(checkCanChainEat(i,j))
             {
+                game.chainEating = true;
+                game.board[i][j].canEat=true; //piece will burn if stopping mid chain eating
                 refreshScreen();
             }
             else endTurn();
@@ -153,8 +167,13 @@ function handleUserClick(i,j)
 }
 function endTurn()
 {
+    UnsetTargets();
+    burnMarkedPieces();
     refreshScreen();
+    game.chainEating = false;
     game.playerIsDark = !game.playerIsDark;
+    checkWin();
+    updatePiecesCanEat();
 }
 function getEmptyTile()
 {
@@ -228,10 +247,98 @@ function setTarget(i,j,dir)
     game.board[i+(dir[0]==="D"?2:-2)][j+(dir[1]==="R"?2:-2)].pieceEatingToGetHere=
     {i:i+(dir[0]==="D"?1:-1),j:j+(dir[1]==="R"?1:-1)};
 }
+function updatePiecesCanEat()
+{
+    for(let i=0;i<8;i++)
+        for(let j=0;j<8;j++)        
+            if(game.board[i][j].type !== "empty" && game.board[i][j].isDark === game.playerIsDark)
+                markIfCanEat(i,j);
+}
+function markIfCanEat(i,j)
+{
+    if(game.board[i][j].type==="soldier")
+    {
+        if(game.board[i][j].isDark===true) //dark soldier
+        {
+            if(canEatInDir(i,j,"UL")||canEatInDir(i,j,"UR"))
+                game.board[i][j].canEat = true;
+        }
+        else //light soldier
+        {
+            if(canEatInDir(i,j,"DL")||canEatInDir(i,j,"DR"))
+                game.board[i][j].canEat = true;
+        }        
+    }
+    else //queen
+    {
+        if(queenCanEat(i,j))        
+            game.board[i][j].canEat = true;        
+    }
+}
+function burnMarkedPieces()
+{
+    for(let i=0;i<8;i++)
+        for(let j=0;j<8;j++)
+        {
+            if(game.board[i][j].canEat)
+            {
+                if(game.board[i][j].isDark) game.darkPieces--;
+                else game.lightPieces--;
+                game.board[i][j] = getEmptyTile();
+            }
+        }
+}
+function unmarkPiecesCanEat()
+{
+    for(let i=0;i<8;i++)
+        for(let j=0;j<8;j++)
+            if(game.board[i][j].type!=="empty")
+                game.board[i][j].canEat = false;            
+}
+function checkWin()
+{
+    let gameOver = false;
+    let winBox = document.getElementById("win-box");
+    if(game.darkPieces === 0)
+    {
+        winBox.children[0].innerHTML = "White Wins!";
+        winBox.children[1].innerHTML = "Black has no more pieces";
+        gameOver = true;
+    }
+    if(game.lightPieces === 0)
+    {
+        winBox.children[0].innerHTML = "Black Wins!";
+        winBox.children[1].innerHTML = "White has no more pieces";
+        gameOver = true;
+    }
+    if(!gameOver)
+    {
+        if(checkNoMoreMoves(game.playerIsDark))
+        {
+            winBox.children[0].innerHTML = game.playerIsDark?"White Wins!":"Black Wins!";
+            winBox.children[1].innerHTML = (game.playerIsDark?"Black":"White")+" has no moves left";
+            gameOver = true;
+        }
+    }
+    if(gameOver)
+        winBox.parentNode.style.display = "";
+}
+function checkNoMoreMoves(isDark)
+{
+    for(let i=0;i<8;i++)
+        for(let j=0;j<8;j++)        
+            if(game.board[i][j].type!=="empty" && game.board[i][j].isDark===isDark)            
+                if(game.board[i][j].type==="soldier" && soldierHasMoves(i,j)) return false;       
+    return true;
+}
 //Soldier Specific Functions
 function getSoldier(soldierIsDark,i,j)
 {
-    return {isDark: soldierIsDark,type: "soldier",picked:false};     
+    return {
+        isDark: soldierIsDark,
+        type: "soldier",
+        picked:false,
+        canEat: false};     
 }
 function setSoldierTargets(i,j)
 {
@@ -243,7 +350,7 @@ function setSoldierTargets(i,j)
 
     //set eating movement
     //Right
-    if(j<6 && game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j+1].type === "soldier" &&
+    if(j<6 && game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j+1].type !== "empty" &&
        game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j+1].isDark !== game.playerIsDark &&
        game.board[i+(game.pickedPiece.piece.isDark?-2:2)][j+2].type === "empty")
        {
@@ -252,7 +359,7 @@ function setSoldierTargets(i,j)
             {i:i+(game.pickedPiece.piece.isDark?-1:1),j:j+1}
        }
     //Left
-    if(j>1 && game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j-1].type === "soldier" &&
+    if(j>1 && game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j-1].type !== "empty" &&
         game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j-1].isDark !== game.playerIsDark &&
         game.board[i+(game.pickedPiece.piece.isDark?-2:2)][j-2].type === "empty")
         {
@@ -276,12 +383,91 @@ function promote(i,j)
     game.board[i][j]={
         isDark: game.board[i][j].isDark,
         type: "queen",
-        picked: false
+        picked: false,
+        canEat: game.board[i][j].canEat
     }
 }
-
+function soldierHasMoves(i,j)
+{
+    //can move left or right
+    if(j<7 && game.board[i+(game.board[i][j].isDark?-1:1)][j+1].type === "empty") return true;
+    if(j>0 && game.board[i+(game.board[i][j].isDark?-1:1)][j-1].type === "empty") return true;
+    //can eat left or right
+    if(j<6 && game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j+1].type !== "empty" &&
+       game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j+1].isDark !== game.playerIsDark &&
+       game.board[i+(game.pickedPiece.piece.isDark?-2:2)][j+2].type === "empty") return true;    
+    if(j>1 && game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j-1].type !== "empty" &&
+       game.board[i+(game.pickedPiece.piece.isDark?-1:1)][j-1].isDark !== game.playerIsDark &&
+       game.board[i+(game.pickedPiece.piece.isDark?-2:2)][j-2].type === "empty") return true;
+    return false;
+}
 //Queen Specific Functions
 function setQueenTargets(i,j)
 {
-    
+    if(i<7 && j<7) setQueenTargetsInDir(i,j,"DR");
+    if(i<7 && j>0) setQueenTargetsInDir(i,j,"DL");
+    if(i>0 && j<7) setQueenTargetsInDir(i,j,"UR");
+    if(i>0 && j>0) setQueenTargetsInDir(i,j,"UL");  
+}
+function setQueenTargetsInDir(i,j,dir)
+{
+    let iOffset,jOffset,iEnd,jEnd;
+    let mul = 1;
+    if(dir.includes("D")) {iOffset = 1; iEnd = 8;}
+    else {iOffset = -1; iEnd = -1;}
+    if(dir.includes("R")) {jOffset = 1; jEnd = 8}
+    else {jOffset = -1; jEnd = -1;}
+    while((i+(iOffset*mul)!==iEnd)&&(j+(jOffset*mul)!==jEnd))
+    {
+        if(game.board[i+(iOffset*mul)][j+(jOffset*mul)].type === "empty") //valid empty spot        
+            game.board[i+(iOffset*mul)][j+(jOffset*mul)].isValidTarget = true;
+        else if(game.board[i+(iOffset*mul)][j+(jOffset*mul)].type === "soldier" &&
+           game.board[i+(iOffset*mul)][j+(jOffset*mul)].isDark === game.board[i][j].isDark) //Ally soldier
+           break;
+        else if(game.board[i+(iOffset*mul)][j+(jOffset*mul)].type === "soldier" &&
+           game.board[i+(iOffset*mul)][j+(jOffset*mul)].isDark !== game.board[i][j].isDark) //Enemy soldier
+           {
+                if((i+(iOffset*(mul+1))!=iEnd)&&(j+(jOffset*(mul+1))!=jEnd) &&
+                    game.board[i+(iOffset*(mul+1))][j+(jOffset*(mul+1))].type === "empty")
+                    {
+                        game.board[i+(iOffset*(mul+1))][j+(jOffset*(mul+1))].isValidTarget = true;
+                        game.board[i+(iOffset*(mul+1))][j+(jOffset*(mul+1))].pieceEatingToGetHere = 
+                        {i:i+(iOffset*mul),j:j+(jOffset*mul)};
+                    }                
+                break;                
+           }
+        mul++;
+    } 
+}
+function queenCanEat(i,j)
+{
+    if(queenCanEatInDir(i,j,"UR")||queenCanEatInDir(i,j,"UL")||
+       queenCanEatInDir(i,j,"DR")||queenCanEatInDir(i,j,"DL")) return true;
+    return false;        
+}
+function queenCanEatInDir(i,j,dir)
+{
+    let iOffset,jOffset,iEnd,jEnd;
+    let mul = 1;
+    if(dir.includes("D")) {iOffset = 1; iEnd = 8;}
+    else {iOffset = -1; iEnd = -1;}
+    if(dir.includes("R")) {jOffset = 1; jEnd = 8}
+    else {jOffset = -1; jEnd = -1;}
+    while((i+(iOffset*mul)!==iEnd)&&(j+(jOffset*mul)!==jEnd))
+    {
+        if(game.board[i+(iOffset*mul)][j+(jOffset*mul)].type === "soldier" &&
+           game.board[i+(iOffset*mul)][j+(jOffset*mul)].isDark === game.board[i][j].isDark) //Ally soldier
+           break;
+        //if you find an eatable enemy soldier return true
+        if(game.board[i+(iOffset*mul)][j+(jOffset*mul)].type === "soldier" &&
+           game.board[i+(iOffset*mul)][j+(jOffset*mul)].isDark !== game.board[i][j].isDark)
+           {
+                if((i+(iOffset*(mul+1))!=iEnd)&&(j+(jOffset*(mul+1))!=jEnd) &&
+                   game.board[i+(iOffset*(mul+1))][j+(jOffset*(mul+1))].type === "empty")
+                   return true;
+                break;
+           }
+        mul++;
+    }
+    return false;
 }

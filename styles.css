@@ -21,6 +21,9 @@
     font-size: 1.5rem;
     text-align: center;
 }
+.gam-data button{
+    margin: 1rem 0;
+}
 .game-board{
     width:700px;
     height: 700px;
